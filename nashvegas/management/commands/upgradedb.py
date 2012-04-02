@@ -355,20 +355,26 @@ class Command(BaseCommand):
             raise CommandError("Invalid --seed migration")
         except IndexError:
             raise CommandError("Usage: ./manage.py upgradedb --seed <stop_at>")
-        migrations = [os.path.join(self.path, m) for m in self._filter_down(stop_at=stop_at)]
-        for migration in migrations:
-            m, created = Migration.objects.get_or_create(
-                migration_label=os.path.basename(migration),
-                content=open(migration, "rb").read()
-            )
-            if created:
-                # this might have been executed prior to committing
-                m.scm_version = self._get_rev(migration)
-                m.save()
-                print m.migration_label, "has been seeded"
-            else:
-                print m.migration_label, "was already applied."
-    
+
+        filtered_migrations = self._filter_down(stop_at=stop_at)
+        for db, migrations in filtered_migrations.items():
+            migrations = [os.path.join(self.path, m) for m in migrations]
+
+            # TODO ensure we're on the right db here
+
+            for migration in migrations:
+                m, created = Migration.objects.get_or_create(
+                    migration_label=os.path.basename(migration),
+                    content=open(migration, "rb").read()
+                )
+                if created:
+                    # this might have been executed prior to committing
+                    m.scm_version = self._get_rev(migration)
+                    m.save()
+                    print m.migration_label, "has been seeded"
+                else:
+                    print m.migration_label, "was already applied."
+        
     def list_migrations(self):
         all_migrations = self._filter_down()
         if len(all_migrations) == 0:
